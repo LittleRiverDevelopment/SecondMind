@@ -9,6 +9,20 @@ describe("configuration", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("uses demo mode on Render when no mode or database is set", () => {
+    const result = loadConfig({ NODE_ENV: "production", RENDER: "true" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.mode).toBe("demo");
+      expect(result.ai).toBe("mock");
+    }
+  });
+
+  it("does not open a database URL just because the host is Render", () => {
+    const result = loadConfig({ NODE_ENV: "production", RENDER: "true", DATABASE_URL: "postgres://example" });
+    expect(result.ok).toBe(false);
+  });
+
   it("refuses demo mode when a database URL is set", () => {
     const result = loadConfig({ NODE_ENV: "production", APP_MODE: "demo", DATABASE_URL: "postgres://example" });
     expect(result.ok).toBe(false);

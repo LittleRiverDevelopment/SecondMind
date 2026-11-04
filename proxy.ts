@@ -1,10 +1,11 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { configuredMode } from "@/lib/config";
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname === "/api/health") return NextResponse.next();
-  const mode = process.env.APP_MODE?.trim() || (process.env.NODE_ENV === "production" ? "" : "demo");
+  const mode = configuredMode();
   if (!mode) {
     return NextResponse.json({ error: "Authentication is not configured." }, { status: 503 });
   }

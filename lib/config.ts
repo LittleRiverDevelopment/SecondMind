@@ -44,14 +44,19 @@ function intEnv(value: string | undefined, fallback: number) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+export function configuredMode(env: NodeJS.ProcessEnv = process.env) {
+  const explicit = env.APP_MODE?.trim();
+  if (explicit) return explicit;
+  if ((env.NODE_ENV ?? "development") !== "production") return "demo";
+  // Render's free demo has no dashboard secret. Any other production host stays fail-closed.
+  if (env.RENDER === "true" && !env.DATABASE_URL?.trim()) return "demo";
+  return "";
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
-  const nodeEnv = env.NODE_ENV ?? "development";
-  let mode = env.APP_MODE?.trim();
+  const mode = configuredMode(env);
   if (!mode) {
-    if (nodeEnv === "production") {
-      return { ok: false, reason: "APP_MODE is not set. Refusing to start." };
-    }
-    mode = "demo";
+    return { ok: false, reason: "APP_MODE is not set. Refusing to start." };
   }
   if (mode !== "demo" && mode !== "local" && mode !== "supabase") {
     return { ok: false, reason: "APP_MODE must be demo, local, or supabase." };

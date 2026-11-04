@@ -2,7 +2,18 @@
 
 Personal library for one owner. Save a link or some text, keep the original, and ask questions against what you saved.
 
-This repository does not provision Supabase, OpenAI, or a host. Demo mode runs locally with synthetic data and a labeled preview model.
+This repository does not create a hosting account, Supabase, or an OpenAI key. Demo mode runs with synthetic data and a labeled preview model.
+
+## Render
+
+`render.yaml` describes one free web service. In the Render dashboard, confirm:
+
+- Build command: `npm install --include=dev && npm run build`
+- Start command: `npm start`
+- `APP_MODE=demo`
+- `DATABASE_URL` is empty
+
+On Render, an empty `APP_MODE` and an empty `DATABASE_URL` also boot the demo. The free instance sleeps after 15 minutes without visitors, and saved items disappear when it sleeps or redeploys. Open the service URL and choose **Continue as demo owner**.
 
 ## Demo mode
 
