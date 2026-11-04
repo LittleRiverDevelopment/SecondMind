@@ -13,7 +13,7 @@ This repository does not create a hosting account, Supabase, or an OpenAI key. D
 - `APP_MODE=demo`
 - `DATABASE_URL` is empty
 
-On Render, an empty `APP_MODE` boots the demo and leaves any linked `DATABASE_URL` unused. A response of `{"error":"Authentication is not configured."}` is an older build: set `APP_MODE` to `demo` in the Render environment tab and redeploy. The free instance sleeps after 15 minutes without visitors, and saved items disappear when it sleeps or redeploys. Open the service URL and choose **Continue as demo owner**.
+On Render, an empty `APP_MODE` boots the demo and leaves any linked `DATABASE_URL` unused. After this code is deployed, the site URL should show the sign-in page. In the Render dashboard, open **Manual Deploy** and choose the latest `main` commit if a deploy does not start on its own. The free instance sleeps after 15 minutes without visitors, and saved items disappear when it sleeps or redeploys. Open the service URL and choose **Continue as demo owner**.
 
 ## Demo mode
 

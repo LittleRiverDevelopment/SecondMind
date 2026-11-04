@@ -5,10 +5,7 @@ import { configuredMode } from "@/lib/config";
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (pathname === "/login" || pathname === "/api/health") return NextResponse.next();
-  const mode = configuredMode();
-  if (!mode) {
-    return NextResponse.json({ error: "Authentication is not configured." }, { status: 503 });
-  }
+  const mode = configuredMode() || "demo";
   const signedIn =
     mode === "supabase"
       ? request.cookies.getAll().some((cookie) => cookie.name.startsWith("sb-"))
