@@ -18,8 +18,23 @@ describe("configuration", () => {
     }
   });
 
-  it("does not open a database URL just because the host is Render", () => {
+  it("keeps the Render demo on PGlite when a database URL is also present", () => {
     const result = loadConfig({ NODE_ENV: "production", RENDER: "true", DATABASE_URL: "postgres://example" });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.mode).toBe("demo");
+      expect(result.dataDriver).toBe("pglite");
+      expect(result.databaseUrl).toBeNull();
+    }
+  });
+
+  it("still refuses an explicit demo pointed at a database", () => {
+    const result = loadConfig({
+      NODE_ENV: "production",
+      RENDER: "true",
+      APP_MODE: "demo",
+      DATABASE_URL: "postgres://example",
+    });
     expect(result.ok).toBe(false);
   });
 

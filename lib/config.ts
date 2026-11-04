@@ -44,12 +44,21 @@ function intEnv(value: string | undefined, fallback: number) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function readEnv(env: NodeJS.ProcessEnv, name: string) {
+  const value = env[name];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+export function onRenderHost(env: NodeJS.ProcessEnv = process.env) {
+  return readEnv(env, "RENDER") === "true" || readEnv(env, "RENDER_SERVICE_ID").length > 0 || readEnv(env, "RENDER_EXTERNAL_URL").length > 0;
+}
+
 export function configuredMode(env: NodeJS.ProcessEnv = process.env) {
-  const explicit = env.APP_MODE?.trim();
+  const explicit = readEnv(env, "APP_MODE");
   if (explicit) return explicit;
-  if ((env.NODE_ENV ?? "development") !== "production") return "demo";
-  // Render's free demo has no dashboard secret. Any other production host stays fail-closed.
-  if (env.RENDER === "true" && !env.DATABASE_URL?.trim()) return "demo";
+  if ((readEnv(env, "NODE_ENV") || "development") !== "production") return "demo";
+  // Bracket access stays runtime, so a Render deploy built without APP_MODE can still see the host.
+  if (onRenderHost(env)) return "demo";
   return "";
 }
 
@@ -62,7 +71,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
     return { ok: false, reason: "APP_MODE must be demo, local, or supabase." };
   }
 
-  const databaseUrl = env.DATABASE_URL?.trim() || null;
+  const linkedDatabase = readEnv(env, "DATABASE_URL");
+  const implicitRenderDemo = mode === "demo" && !readEnv(env, "APP_MODE") && onRenderHost(env);
+  const databaseUrl = linkedDatabase && !implicitRenderDemo ? linkedDatabase : null;
   if (mode === "demo" && databaseUrl) {
     return {
       ok: false,
