@@ -1,3 +1,6 @@
+import { configuredMode, onRenderHost } from "@/lib/config";
+
 export function GET() {
-  return Response.json({ ok: true });
+  const mode = configuredMode();
+  return Response.json({ ok: Boolean(mode), mode: mode || "unset", render: onRenderHost() });
 }

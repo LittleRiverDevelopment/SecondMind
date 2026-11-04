@@ -1,3 +1,4 @@
+import { env as runtimeEnv } from "node:process";
 import { z } from "zod";
 
 export const DEMO_OWNER_ID = "00000000-0000-4000-8000-000000000001";
@@ -49,21 +50,27 @@ function readEnv(env: NodeJS.ProcessEnv, name: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-export function onRenderHost(env: NodeJS.ProcessEnv = process.env) {
-  return readEnv(env, "RENDER") === "true" || readEnv(env, "RENDER_SERVICE_ID").length > 0 || readEnv(env, "RENDER_EXTERNAL_URL").length > 0;
+function hostEnv(env?: NodeJS.ProcessEnv) {
+  return env ?? runtimeEnv;
 }
 
-export function configuredMode(env: NodeJS.ProcessEnv = process.env) {
-  const explicit = readEnv(env, "APP_MODE");
+export function onRenderHost(env?: NodeJS.ProcessEnv) {
+  const source = hostEnv(env);
+  return readEnv(source, "RENDER") === "true" || readEnv(source, "RENDER_SERVICE_ID").length > 0 || readEnv(source, "RENDER_EXTERNAL_URL").length > 0;
+}
+
+export function configuredMode(env?: NodeJS.ProcessEnv) {
+  const source = hostEnv(env);
+  const explicit = readEnv(source, "APP_MODE");
   if (explicit) return explicit;
-  if ((readEnv(env, "NODE_ENV") || "development") !== "production") return "demo";
-  // Bracket access stays runtime, so a Render deploy built without APP_MODE can still see the host.
-  if (onRenderHost(env)) return "demo";
+  if ((readEnv(source, "NODE_ENV") || "development") !== "production") return "demo";
+  if (onRenderHost(source)) return "demo";
   return "";
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
-  const mode = configuredMode(env);
+export function loadConfig(env?: NodeJS.ProcessEnv): ConfigResult {
+  const source = hostEnv(env);
+  const mode = configuredMode(source);
   if (!mode) {
     return { ok: false, reason: "APP_MODE is not set. Refusing to start." };
   }
@@ -71,8 +78,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
     return { ok: false, reason: "APP_MODE must be demo, local, or supabase." };
   }
 
-  const linkedDatabase = readEnv(env, "DATABASE_URL");
-  const implicitRenderDemo = mode === "demo" && !readEnv(env, "APP_MODE") && onRenderHost(env);
+  const linkedDatabase = readEnv(source, "DATABASE_URL");
+  const implicitRenderDemo = mode === "demo" && !readEnv(source, "APP_MODE") && onRenderHost(source);
   const databaseUrl = linkedDatabase && !implicitRenderDemo ? linkedDatabase : null;
   if (mode === "demo" && databaseUrl) {
     return {
@@ -81,7 +88,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
     };
   }
 
-  const dimensions = intEnv(env.EMBEDDING_DIMENSIONS, EMBEDDING_DIMENSIONS);
+  const dimensions = intEnv(source.EMBEDDING_DIMENSIONS, EMBEDDING_DIMENSIONS);
   if (dimensions !== EMBEDDING_DIMENSIONS) {
     return {
       ok: false,
@@ -89,13 +96,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
     };
   }
 
-  const aiRequested = env.AI_PROVIDER?.trim();
+  const aiRequested = readEnv(source, "AI_PROVIDER");
   let ai: AiMode;
   if (mode === "demo") {
     ai = "mock";
   } else if (aiRequested === "mock") {
     ai = "mock";
-  } else if (aiRequested === "openai" || (!aiRequested && env.OPENAI_API_KEY?.trim())) {
+  } else if (aiRequested === "openai" || (!aiRequested && readEnv(source, "OPENAI_API_KEY"))) {
     ai = "openai";
   } else if (!aiRequested) {
     ai = "unconfigured";
@@ -103,7 +110,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
     return { ok: false, reason: "AI_PROVIDER must be mock or openai." };
   }
 
-  const openAiKey = mode === "demo" ? null : env.OPENAI_API_KEY?.trim() || null;
+  const openAiKey = mode === "demo" ? null : readEnv(source, "OPENAI_API_KEY") || null;
   if (ai === "openai" && !openAiKey) {
     return { ok: false, reason: "AI_PROVIDER=openai requires OPENAI_API_KEY." };
   }
@@ -111,16 +118,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
   let ownerId = DEMO_OWNER_ID;
   let ownerEmail = DEMO_EMAIL;
   let ownerPassword: string | null = null;
-  let sessionSecret = env.SESSION_SECRET?.trim() || "";
+  let sessionSecret = readEnv(source, "SESSION_SECRET");
   let supabaseUrl: string | null = null;
   let supabaseAnonKey: string | null = null;
 
   if (mode === "demo") {
     sessionSecret = sessionSecret || DEMO_SESSION_SECRET;
   } else if (mode === "local") {
-    const id = uuidSchema.safeParse(env.OWNER_ID?.trim());
-    const email = z.email().safeParse(env.OWNER_EMAIL?.trim().toLowerCase());
-    ownerPassword = env.OWNER_PASSWORD ?? "";
+    const id = uuidSchema.safeParse(readEnv(source, "OWNER_ID"));
+    const email = z.email().safeParse(readEnv(source, "OWNER_EMAIL").toLowerCase());
+    ownerPassword = source.OWNER_PASSWORD ?? "";
     if (!id.success || !email.success || ownerPassword.length < 8 || sessionSecret.length < 16) {
       return {
         ok: false,
@@ -131,10 +138,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
     ownerId = id.data;
     ownerEmail = email.data;
   } else {
-    const email = z.email().safeParse(env.OWNER_EMAIL?.trim().toLowerCase());
-    const id = uuidSchema.safeParse(env.OWNER_ID?.trim());
-    supabaseUrl = env.SUPABASE_URL?.trim() || null;
-    supabaseAnonKey = env.SUPABASE_ANON_KEY?.trim() || null;
+    const email = z.email().safeParse(readEnv(source, "OWNER_EMAIL").toLowerCase());
+    const id = uuidSchema.safeParse(readEnv(source, "OWNER_ID"));
+    supabaseUrl = readEnv(source, "SUPABASE_URL") || null;
+    supabaseAnonKey = readEnv(source, "SUPABASE_ANON_KEY") || null;
     if (!email.success || !id.success || !supabaseUrl || !supabaseAnonKey || !databaseUrl || sessionSecret.length < 16) {
       return {
         ok: false,
@@ -157,20 +164,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ConfigResult {
     sessionSecret,
     dataDriver,
     databaseUrl,
-    pgliteDir: env.PGLITE_DIR?.trim() || (mode === "demo" ? ".data/demo" : ".data/local"),
+    pgliteDir: readEnv(source, "PGLITE_DIR") || (mode === "demo" ? ".data/demo" : ".data/local"),
     ai,
     openAiKey,
-    extractionModel: env.OPENAI_EXTRACTION_MODEL?.trim() || "gpt-4o-mini",
-    embeddingModel: env.OPENAI_EMBEDDING_MODEL?.trim() || "text-embedding-3-small",
-    answerModel: env.OPENAI_ANSWER_MODEL?.trim() || "gpt-4o-mini",
+    extractionModel: readEnv(source, "OPENAI_EXTRACTION_MODEL") || "gpt-4o-mini",
+    embeddingModel: readEnv(source, "OPENAI_EMBEDDING_MODEL") || "text-embedding-3-small",
+    answerModel: readEnv(source, "OPENAI_ANSWER_MODEL") || "gpt-4o-mini",
     supabaseUrl,
     supabaseAnonKey,
-    inlineWorker: env.INLINE_WORKER === "true" || mode === "demo",
-    contextChunkLimit: intEnv(env.CONTEXT_CHUNK_LIMIT, 8),
-    contextCharLimit: intEnv(env.CONTEXT_CHAR_LIMIT, 12_000),
-    outputTokenLimit: intEnv(env.OUTPUT_TOKEN_LIMIT, 1200),
-    captureLimitPerHour: intEnv(env.CAPTURE_LIMIT_PER_HOUR, 30),
-    aiLimitPerHour: intEnv(env.AI_LIMIT_PER_HOUR, 20),
+    inlineWorker: readEnv(source, "INLINE_WORKER") === "true" || mode === "demo",
+    contextChunkLimit: intEnv(source.CONTEXT_CHUNK_LIMIT, 8),
+    contextCharLimit: intEnv(source.CONTEXT_CHAR_LIMIT, 12_000),
+    outputTokenLimit: intEnv(source.OUTPUT_TOKEN_LIMIT, 1200),
+    captureLimitPerHour: intEnv(source.CAPTURE_LIMIT_PER_HOUR, 30),
+    aiLimitPerHour: intEnv(source.AI_LIMIT_PER_HOUR, 20),
   };
 }
 
