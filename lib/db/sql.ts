@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import "@/lib/db/wasm-memory";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
 import postgres from "postgres";

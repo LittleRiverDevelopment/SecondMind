@@ -1,4 +1,5 @@
 import { loadConfig } from "@/lib/config";
+import { releaseStartupMemory } from "@/lib/db/wasm-memory";
 import { createLibraryStore, type LibraryStore } from "@/lib/db/store";
 import { migrate, openPglite, openPostgres, type Sql } from "@/lib/db/sql";
 import { mockEmbedding } from "@/lib/ai/mock";
@@ -20,6 +21,7 @@ export async function createReadyStore(sql?: Sql) {
   const migrated = await migrate(database);
   const store = createLibraryStore(database, config.ownerId, migrated.restrictedRole);
   if (config.mode === "demo") await seedDemo(database, store);
+  releaseStartupMemory();
   return store;
 }
 

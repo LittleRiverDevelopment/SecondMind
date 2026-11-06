@@ -5,7 +5,7 @@ services:
     plan: free
     branch: main
     buildCommand: npm ci --omit=dev && npm run build
-    startCommand: npm start
+    startCommand: node --expose-gc ./node_modules/next/dist/bin/next start -H 0.0.0.0
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
