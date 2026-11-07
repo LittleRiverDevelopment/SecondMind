@@ -30,8 +30,13 @@ export function startInlineWorker() {
   const config = loadConfig();
   if (!config.ok || !config.inlineWorker) return;
   if (!markWorkerStarted()) return;
+  let failures = 0;
   const timer = setInterval(() => {
-    void runOnce();
+    void runOnce().catch((error) => {
+      failures += 1;
+      console.error(error instanceof Error ? error.message : error);
+      if (failures >= 2) clearInterval(timer);
+    });
   }, 1000);
   timer.unref?.();
 }

@@ -25,10 +25,16 @@ export async function createReadyStore(sql?: Sql) {
   return store;
 }
 
+const globalAttempts = globalThis as typeof globalThis & { __signalDbAttempts?: number };
+
 export function getStore() {
   if (!globalForDb.signalStore) {
+    const attempt = (globalAttempts.__signalDbAttempts ?? 0) + 1;
+    globalAttempts.__signalDbAttempts = attempt;
     globalForDb.signalStore = createReadyStore().catch((error) => {
-      globalForDb.signalStore = undefined;
+      // One retry reclones after a failed copy. Further requests reuse this
+      // rejection so a dead database cannot restart every second.
+      if (attempt < 2) globalForDb.signalStore = undefined;
       throw error;
     });
   }
