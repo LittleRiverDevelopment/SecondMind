@@ -1,9 +1,12 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
+import { onRenderHost } from "@/lib/config";
 import "@/lib/db/wasm-memory";
 import { PGlite } from "@electric-sql/pglite";
 import { vector } from "@electric-sql/pglite-pgvector";
 import postgres from "postgres";
+
+const DEMO_CLUSTER = path.join(process.cwd(), "data", "demo-cluster");
 
 export type SqlRow = Record<string, unknown>;
 
@@ -32,12 +35,38 @@ function fromQueryable(db: Queryable): Sql {
   } as Sql;
 }
 
+export function cloneDemoCluster(dataDir: string) {
+  const clone = onRenderHost() || process.env.CLONE_DEMO_CLUSTER === "1";
+  const version = path.join(dataDir, "PG_VERSION");
+  if (!clone || existsSync(version) || !existsSync(path.join(DEMO_CLUSTER, "PG_VERSION"))) return;
+  mkdirSync(dataDir, { recursive: true });
+  cpSync(DEMO_CLUSTER, dataDir, {
+    recursive: true,
+    filter: (source) => path.basename(source) !== "postmaster.pid",
+  });
+  rmSync(path.join(dataDir, "postmaster.pid"), { force: true });
+}
+
 export async function openPglite(dataDir?: string): Promise<Sql> {
-  if (dataDir) mkdirSync(dataDir, { recursive: true });
+  if (dataDir) {
+    mkdirSync(dataDir, { recursive: true });
+    cloneDemoCluster(dataDir);
+  }
   const db = dataDir
     ? await PGlite.create(dataDir, { extensions: { vector }, relaxedDurability: true })
     : await PGlite.create({ extensions: { vector } });
   return fromQueryable(db as unknown as Queryable);
+}
+
+export async function createClosablePglite(dataDir: string) {
+  rmSync(dataDir, { recursive: true, force: true });
+  mkdirSync(dataDir, { recursive: true });
+  const db = await PGlite.create(dataDir, { extensions: { vector }, relaxedDurability: true });
+  return {
+    sql: fromQueryable(db as unknown as Queryable),
+    checkpoint: () => db.exec("CHECKPOINT"),
+    close: () => db.close(),
+  };
 }
 
 type PgQueryable = {
