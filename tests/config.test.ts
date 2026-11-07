@@ -1,6 +1,9 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEMO_SESSION_SECRET, loadConfig } from "@/lib/config";
 import { issueSession, passwordsMatch, readSession } from "@/lib/auth/session";
+import { PGLITE_CLUSTER_DIRS } from "@/lib/db/sql";
 import { captureSchema } from "@/lib/validation";
 
 describe("configuration", () => {
@@ -83,6 +86,14 @@ describe("sessions", () => {
   it("compares owner passwords without accepting a different value", () => {
     expect(passwordsMatch("long-password", "long-password")).toBe(true);
     expect(passwordsMatch("long-password", "other-password")).toBe(false);
+  });
+});
+
+describe("prepared demo cluster", () => {
+  it("keeps the empty Postgres directories that a git checkout would drop", () => {
+    for (const dir of PGLITE_CLUSTER_DIRS) {
+      expect(existsSync(path.join(process.cwd(), "data", "demo-cluster", dir, ".gitkeep"))).toBe(true);
+    }
   });
 });
 
