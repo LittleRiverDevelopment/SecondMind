@@ -9,11 +9,11 @@ This repository does not create a hosting account, Supabase, or an OpenAI key. D
 `render.yaml` describes one free web service. In the Render dashboard, confirm:
 
 - Build command: `npm install --include=dev && npm run build`
-- Start command: `npm start`
+- Start command: `node --expose-gc ./node_modules/next/dist/bin/next start -H 0.0.0.0`
 - `APP_MODE=demo`
 - `DATABASE_URL` is empty
 
-On Render, an empty `APP_MODE` boots the demo and leaves any linked `DATABASE_URL` unused. After this code is deployed, the site URL should show the sign-in page. In the Render dashboard, open **Manual Deploy** and choose the latest `main` commit if a deploy does not start on its own. The free instance sleeps after 15 minutes without visitors, and saved items disappear when it sleeps or redeploys. Open the service URL and choose **Continue as demo owner**.
+Use that start command in the dashboard as well. `npm start` leaves npm running beside the app, and the free instance does not have room for both. On Render, an empty `APP_MODE` boots the demo and leaves any linked `DATABASE_URL` unused. After this code is deployed, the site URL should show the sign-in page. In the Render dashboard, open **Manual Deploy** and choose the latest `main` commit if a deploy does not start on its own. The free instance sleeps after 15 minutes without visitors, and saved items disappear when it sleeps or redeploys. Open the service URL and choose **Continue as demo owner**.
 
 ## Demo mode
 
