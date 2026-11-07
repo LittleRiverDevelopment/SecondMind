@@ -8,6 +8,29 @@ import postgres from "postgres";
 
 const DEMO_CLUSTER = path.join(process.cwd(), "data", "demo-cluster");
 
+// Git only stores files, so a clone of the prepared cluster omits these empty
+// directories. Postgres exits immediately when one of them is missing.
+export const PGLITE_CLUSTER_DIRS = [
+  "pg_commit_ts",
+  "pg_dynshmem",
+  "pg_logical/mappings",
+  "pg_logical/snapshots",
+  "pg_notify",
+  "pg_replslot",
+  "pg_serial",
+  "pg_snapshots",
+  "pg_stat",
+  "pg_stat_tmp",
+  "pg_tblspc",
+  "pg_twophase",
+  "pg_wal/archive_status",
+  "pg_wal/summaries",
+];
+
+export function ensureClusterDirectories(dataDir: string) {
+  for (const dir of PGLITE_CLUSTER_DIRS) mkdirSync(path.join(dataDir, dir), { recursive: true });
+}
+
 export type SqlRow = Record<string, unknown>;
 
 export type Sql = {
@@ -122,6 +145,7 @@ export async function openPglite(dataDir?: string): Promise<Sql> {
   if (dataDir) {
     mkdirSync(dataDir, { recursive: true });
     cloneDemoCluster(dataDir);
+    ensureClusterDirectories(dataDir);
   }
   const { notes, options } = pgliteOptions();
   try {
@@ -140,6 +164,7 @@ export async function openPglite(dataDir?: string): Promise<Sql> {
 export async function createClosablePglite(dataDir: string) {
   rmSync(dataDir, { recursive: true, force: true });
   mkdirSync(dataDir, { recursive: true });
+  ensureClusterDirectories(dataDir);
   const db = await PGlite.create(dataDir, pgliteOptions().options);
   return {
     sql: fromQueryable(db as unknown as Queryable),
