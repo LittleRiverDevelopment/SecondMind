@@ -35,10 +35,56 @@ function fromQueryable(db: Queryable): Sql {
   } as Sql;
 }
 
+// These replace PGlite's defaults, so the single-user flags stay here too.
+// shared_buffers stays small: the prepared cluster's 64MB setting does not fit
+// beside Next.js inside a 512 MB instance, and Postgres then exits immediately.
+const PGLITE_START_PARAMS = [
+  "--single",
+  "-F",
+  "-O",
+  "-j",
+  "-c",
+  "search_path=public",
+  "-c",
+  "exit_on_error=false",
+  "-c",
+  "log_checkpoints=false",
+  "-c",
+  "max_worker_processes=0",
+  "-c",
+  "max_parallel_workers=0",
+  "-c",
+  "max_parallel_workers_per_gather=0",
+  "-c",
+  "io_method=sync",
+  "-c",
+  "max_parallel_maintenance_workers=0",
+  "-c",
+  "shared_buffers=8MB",
+  "-c",
+  "max_connections=8",
+  "-c",
+  "work_mem=1MB",
+  "-c",
+  "maintenance_work_mem=8MB",
+  "-c",
+  "wal_buffers=512kB",
+  "-c",
+  "temp_buffers=2MB",
+  "-c",
+  "huge_pages=off",
+  "-c",
+  "dynamic_shared_memory_type=posix",
+];
+
 export function cloneDemoCluster(dataDir: string) {
   const clone = onRenderHost() || process.env.CLONE_DEMO_CLUSTER === "1";
   const version = path.join(dataDir, "PG_VERSION");
-  if (!clone || existsSync(version) || !existsSync(path.join(DEMO_CLUSTER, "PG_VERSION"))) return;
+  const seed = path.join(DEMO_CLUSTER, "PG_VERSION");
+  if (!clone || existsSync(version) || !existsSync(seed)) {
+    if (clone && !existsSync(seed)) console.error("prepared database is missing", DEMO_CLUSTER);
+    return;
+  }
   mkdirSync(dataDir, { recursive: true });
   cpSync(DEMO_CLUSTER, dataDir, {
     recursive: true,
@@ -47,21 +93,54 @@ export function cloneDemoCluster(dataDir: string) {
   rmSync(path.join(dataDir, "postmaster.pid"), { force: true });
 }
 
+function pgliteOptions() {
+  const notes: string[] = [];
+  return {
+    notes,
+    options: {
+      extensions: { vector },
+      relaxedDurability: true,
+      startParams: PGLITE_START_PARAMS,
+      onStderr: (text: string) => {
+        notes.push(text);
+        return true;
+      },
+    },
+  };
+}
+
+function describePgliteFailure(error: unknown, notes: string[]) {
+  const detail = notes.join("").trim().slice(-1500);
+  const message = error instanceof Error ? error.message : String(error);
+  if (!detail || message.includes(detail.slice(0, 80))) return error;
+  const wrapped = new Error(`${message}: ${detail}`);
+  if (error instanceof Error) wrapped.cause = error;
+  return wrapped;
+}
+
 export async function openPglite(dataDir?: string): Promise<Sql> {
   if (dataDir) {
     mkdirSync(dataDir, { recursive: true });
     cloneDemoCluster(dataDir);
   }
-  const db = dataDir
-    ? await PGlite.create(dataDir, { extensions: { vector }, relaxedDurability: true })
-    : await PGlite.create({ extensions: { vector } });
-  return fromQueryable(db as unknown as Queryable);
+  const { notes, options } = pgliteOptions();
+  try {
+    const db = dataDir ? await PGlite.create(dataDir, options) : await PGlite.create(options);
+    return fromQueryable(db as unknown as Queryable);
+  } catch (error) {
+    // The Render copy is disposable. Drop it so the one retry starts from the
+    // prepared files again. Leave a local database in place.
+    if (dataDir && onRenderHost() && path.resolve(dataDir) !== path.resolve(DEMO_CLUSTER)) {
+      rmSync(dataDir, { recursive: true, force: true });
+    }
+    throw describePgliteFailure(error, notes);
+  }
 }
 
 export async function createClosablePglite(dataDir: string) {
   rmSync(dataDir, { recursive: true, force: true });
   mkdirSync(dataDir, { recursive: true });
-  const db = await PGlite.create(dataDir, { extensions: { vector }, relaxedDurability: true });
+  const db = await PGlite.create(dataDir, pgliteOptions().options);
   return {
     sql: fromQueryable(db as unknown as Queryable),
     checkpoint: () => db.exec("CHECKPOINT"),
